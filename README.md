@@ -4,12 +4,12 @@ A Model Context Protocol (MCP) server for Hudu IT documentation platform. This s
 
 ## Features
 
-- **Complete Hudu API Coverage**: Access articles, assets, passwords, companies, and more
+- **Complete Hudu API Coverage**: 144 tools covering all Hudu API endpoints
 - **MCP 2025-06-18 Compliant**: Follows the latest MCP specification
 - **Dual Transport Support**: Both HTTP JSON-RPC and stdio transports
 - **Secure Authentication**: API key-based authentication with Hudu
-- **Rich Resource Access**: Browse and search all Hudu content types
-- **Comprehensive Tooling**: CRUD operations for all major Hudu entities
+- **Rich Resource Access**: Browse and search 23 different content types
+- **Comprehensive Tooling**: Full CRUD operations for all Hudu entities
 - **TypeScript Support**: Full type safety and excellent developer experience
 - **Docker Ready**: Containerized deployment with health checks
 
@@ -19,8 +19,8 @@ A Model Context Protocol (MCP) server for Hudu IT documentation platform. This s
 
 1. Clone the repository:
 ```bash
-git clone <your-repo-url>
-cd hudu-mcp-server
+git clone https://github.com/npab19/Hudu-MCP.git
+cd Hudu-MCP
 ```
 
 2. Copy the Docker environment file:
@@ -113,50 +113,86 @@ When `MCP_SERVER_PORT` is not set, the server runs in stdio mode:
 
 ## MCP Resources
 
-The server exposes the following resource types:
+The server exposes 23 different resource types covering all Hudu entities:
 
+**Core Resources:**
 - `hudu://article/list` - List all articles
-- `hudu://article/{id}` - Specific article
 - `hudu://asset/list` - List all assets  
-- `hudu://asset/{id}` - Specific asset
 - `hudu://password/list` - List all passwords
-- `hudu://password/{id}` - Specific password
 - `hudu://company/list` - List all companies
-- `hudu://company/{id}` - Specific company
 - `hudu://asset-layout/list` - List all asset layouts
 - `hudu://activity-log/list` - List all activity logs
 
-## MCP Tools
+**Extended Resources:**
+- `hudu://folder/list` - List all folders
+- `hudu://user/list` - List all users
+- `hudu://procedure/list` - List all procedures
+- `hudu://network/list` - List all networks
+- `hudu://password-folder/list` - List all password folders
+- `hudu://website/list` - List all websites
+- `hudu://vlan/list` - List all VLANs
+- `hudu://ip-address/list` - List all IP addresses
+- `hudu://relation/list` - List all relations
+- `hudu://list/list` - List all custom lists
+- `hudu://group/list` - List all groups
+- `hudu://magic-dash/list` - List all magic dashboard items
+- `hudu://matcher/list` - List all asset matchers
+- `hudu://expiration/list` - List all expirations
+- `hudu://export/list` - List all exports
+- `hudu://rack-storage/list` - List all rack storage
+- `hudu://card/list` - List all dashboard cards
 
-### Articles
-- `hudu_get_articles` - List articles with filtering
-- `hudu_get_article` - Get specific article
-- `hudu_create_article` - Create new article
-- `hudu_update_article` - Update existing article
-- `hudu_delete_article` - Delete article
+All resources support individual access via `{resource-type}/{id}` URIs.
 
-### Assets
-- `hudu_get_assets` - List assets with filtering
-- `hudu_get_asset` - Get specific asset
-- `hudu_create_asset` - Create new asset
-- `hudu_update_asset` - Update existing asset
-- `hudu_delete_asset` - Delete asset
+## MCP Tools (144 Total)
 
-### Passwords
-- `hudu_get_passwords` - List passwords with filtering
-- `hudu_get_password` - Get specific password
-- `hudu_create_password` - Create new password
-- `hudu_update_password` - Update existing password
-- `hudu_delete_password` - Delete password
+The server provides comprehensive CRUD operations for all Hudu entities. Here are the main tool categories:
 
-### Companies
-- `hudu_get_companies` - List companies
-- `hudu_get_company` - Get specific company
-- `hudu_create_company` - Create new company
-- `hudu_update_company` - Update existing company
+### Core Entities (Full CRUD + Archive/Unarchive)
+**Articles** (7 tools):
+- `hudu_get_articles`, `hudu_get_article`, `hudu_create_article`, `hudu_update_article`, `hudu_delete_article`, `hudu_archive_article`, `hudu_unarchive_article`
 
-### Search
-- `hudu_search_all` - Search across all content types
+**Assets** (7 tools):
+- `hudu_get_assets`, `hudu_get_asset`, `hudu_create_asset`, `hudu_update_asset`, `hudu_delete_asset`, `hudu_archive_asset`, `hudu_unarchive_asset`
+
+**Passwords** (7 tools):
+- `hudu_get_passwords`, `hudu_get_password`, `hudu_create_password`, `hudu_update_password`, `hudu_delete_password`, `hudu_archive_password`, `hudu_unarchive_password`
+
+**Companies** (7 tools):
+- `hudu_get_companies`, `hudu_get_company`, `hudu_create_company`, `hudu_update_company`, `hudu_delete_company`, `hudu_archive_company`, `hudu_unarchive_company`
+
+### Extended Entities (Full CRUD)
+**Asset Layouts** (5 tools): Get, create, update, delete, list
+**Activity Logs** (2 tools): Get, list  
+**Folders** (5 tools): Get, create, update, delete, list
+**Users** (5 tools): Get, create, update, delete, list
+**Procedures** (5 tools): Get, create, update, delete, list
+**Networks** (5 tools): Get, create, update, delete, list
+**Password Folders** (5 tools): Get, create, update, delete, list
+**Websites** (5 tools): Get, create, update, delete, list
+**VLANs** (5 tools): Get, create, update, delete, list
+**IP Addresses** (5 tools): Get, create, update, delete, list
+**Relations** (5 tools): Get, create, update, delete, list
+**Custom Lists** (5 tools): Get, create, update, delete, list
+**Groups** (5 tools): Get, create, update, delete, list
+
+### Specialized Tools
+**Magic Dashboard** (5 tools): Get, create, update, delete, list
+**Asset Matchers** (5 tools): Get, create, update, delete, list  
+**Expirations** (2 tools): Get, list
+**Data Exports** (2 tools): Get, list
+**Rack Storage** (5 tools): Get, create, update, delete, list
+**Rack Storage Items** (5 tools): Get, create, update, delete, list
+**Public Photos** (5 tools): Get, create, update, delete, list
+**Dashboard Cards** (2 tools): Get, list
+
+### Utility Tools
+**Search**: `hudu_search_all` - Search across all content types
+**File Upload**: `hudu_upload_file` - Upload files to Hudu
+**API Info**: `hudu_get_api_info` - Get API information
+**Company Jump**: `hudu_company_jump` - Quick company access
+
+All tools support comprehensive filtering, pagination, and search capabilities where applicable.
 
 ## Security
 
