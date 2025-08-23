@@ -1,0 +1,62 @@
+services:
+  hudu-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hudu-mcp-server
+    restart: unless-stopped
+    
+    # Environment variables (can be overridden with .env file)
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=debug
+      - HUDU_BASE_URL=${HUDU_BASE_URL}
+      - HUDU_API_KEY=${HUDU_API_KEY}
+      - HUDU_TIMEOUT=${HUDU_TIMEOUT:-30000}
+      - MCP_SERVER_PORT=3000
+    
+    # Optional: Mount configuration file
+    volumes:
+      - ./config:/app/config:ro
+    
+    # Optional: Expose port for HTTP transport (if needed)
+    ports:
+      - "3000:3000"
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('Health check passed')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Add a reverse proxy if needed
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: hudu-mcp-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - hudu-mcp-server
