@@ -51,7 +51,7 @@ export class HuduMcpServer {
     this.server = new Server(
       {
         name: 'hudu-mcp-server',
-        version: '1.0.0',
+        version: '1.1.0',
       },
       {
         capabilities: {
