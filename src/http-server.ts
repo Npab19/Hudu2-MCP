@@ -2336,16 +2336,48 @@ export class HuduHttpServer {
         let results: any = {};
 
         if (!type || type === 'articles') {
-          results.articles = await huduClient.getArticles({ search: query, company_id });
+          try {
+            results.articles = await huduClient.getArticles({ search: query, company_id });
+          } catch (error: any) {
+            if (error.response?.status === 401) {
+              console.warn('Skipping articles search - insufficient permissions');
+            } else {
+              throw error;
+            }
+          }
         }
         if (!type || type === 'assets') {
-          results.assets = await huduClient.getAssets({ search: query, company_id });
+          try {
+            results.assets = await huduClient.getAssets({ search: query, company_id });
+          } catch (error: any) {
+            if (error.response?.status === 401) {
+              console.warn('Skipping assets search - insufficient permissions');
+            } else {
+              throw error;
+            }
+          }
         }
         if (!type || type === 'passwords') {
-          results.passwords = await huduClient.getAssetPasswords({ search: query, company_id });
+          try {
+            results.passwords = await huduClient.getAssetPasswords({ search: query, company_id });
+          } catch (error: any) {
+            if (error.response?.status === 401) {
+              console.warn('Skipping passwords search - insufficient permissions');
+            } else {
+              throw error;
+            }
+          }
         }
         if (!type || type === 'companies') {
-          results.companies = await huduClient.getCompanies({ search: query });
+          try {
+            results.companies = await huduClient.getCompanies({ search: query });
+          } catch (error: any) {
+            if (error.response?.status === 401) {
+              console.warn('Skipping companies search - insufficient permissions');
+            } else {
+              throw error;
+            }
+          }
         }
 
         return { content: [{ type: 'text', text: JSON.stringify(results) }] };
