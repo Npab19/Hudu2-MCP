@@ -28,11 +28,11 @@ RUN adduser -S hudu -u 1001
 USER hudu
 
 # Expose the port (though MCP typically uses stdio)
-EXPOSE 3000
+EXPOSE 3050
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD curl -f http://localhost:3050/health || exit 1
 
 # Set environment variables
 ENV NODE_ENV=production

@@ -1,5 +1,5 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { HuduClient } from './hudu-client.js';
+// import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+// import { HuduClient } from './hudu-client.js';
 import { HuduConfig, MCP_TOOLS } from './types.js';
 import express, { Request, Response, NextFunction } from 'express';
 import { HuduMcpServer } from './server.js';
@@ -85,7 +85,7 @@ export class HuduHttpServer {
       res.json({
         name: 'hudu-mcp-server',
         version: '1.0.0',
-        protocolVersion: '2024-11-05',
+        protocolVersion: '2025-06-18',
         serverInfo: {
           name: 'hudu-mcp-server',
           version: '1.0.0'
@@ -102,7 +102,7 @@ export class HuduHttpServer {
       res.json({
         name: 'hudu-mcp-server',
         version: '1.0.0',
-        protocolVersion: '2024-11-05',
+        protocolVersion: '2025-06-18',
         transport: {
           type: 'http',
           endpoint: '/mcp'
@@ -286,8 +286,8 @@ export class HuduHttpServer {
   }
 
   private async handleInitialize(params: any) {
-    // Support both 2024-11-05 and 2025-06-18 protocol versions
-    const clientProtocolVersion = params?.protocolVersion || '2024-11-05';
+    // Support both legacy and current protocol versions
+    const clientProtocolVersion = params?.protocolVersion || '2025-06-18';
     return {
       protocolVersion: clientProtocolVersion,
       capabilities: {
@@ -2305,85 +2305,112 @@ export class HuduHttpServer {
 
   private async handleCallTool(params: any) {
     const { name, arguments: args } = params;
-    const huduClient = this.mcpServer.huduClient;
+    
+    try {
+      // Delegate to the main MCP server's tool handler using reflection
+      const mcpServerInstance = this.mcpServer as any;
+      const server = mcpServerInstance.server;
+      
+      // Create a mock request object that matches MCP CallToolRequest schema
+      const mockRequest = {
+        jsonrpc: '2.0' as const,
+        id: null,
+        method: 'tools/call',
+        params: {
+          name,
+          arguments: args
+        }
+      };
+      
+      // Call the server's request handlers directly
+      const handlers = server._requestHandlers;
+      const toolHandler = handlers?.get('tools/call');
+      
+      if (toolHandler) {
+        const result = await toolHandler(mockRequest);
+        return result;
+      } else {
+        // Fallback to direct client calls for basic functionality
+        const huduClient = this.mcpServer.huduClient;
+        
+        switch (name) {
+          case 'hudu_get_articles':
+            const articles = await huduClient.getArticles(args);
+            return { content: [{ type: 'text', text: JSON.stringify(articles) }] };
+            
+          case 'hudu_get_article':
+            if (!args || typeof args.id !== 'number') {
+              throw new Error('Article ID is required');
+            }
+            const article = await huduClient.getArticle(args.id);
+            return { content: [{ type: 'text', text: JSON.stringify(article) }] };
+            
+          case 'hudu_get_companies':
+            const companies = await huduClient.getCompanies(args);
+            return { content: [{ type: 'text', text: JSON.stringify(companies) }] };
+            
+          case 'hudu_get_assets':
+            const assets = await huduClient.getAssets(args);
+            return { content: [{ type: 'text', text: JSON.stringify(assets) }] };
+            
+          case 'hudu_search_all':
+            const { query, type, company_id } = args;
+            let results: any = {};
 
-    switch (name) {
-      case 'hudu_get_articles':
-        const articles = await huduClient.getArticles(args);
-        return { content: [{ type: 'text', text: JSON.stringify(articles) }] };
-        
-      case 'hudu_get_article':
-        if (!args || typeof args.id !== 'number') {
-          throw new Error('Article ID is required');
-        }
-        const article = await huduClient.getArticle(args.id);
-        return { content: [{ type: 'text', text: JSON.stringify(article) }] };
-        
-      case 'hudu_create_article':
-        const newArticle = await huduClient.createArticle(args);
-        return { content: [{ type: 'text', text: JSON.stringify(newArticle) }] };
-        
-      case 'hudu_get_companies':
-        const companies = await huduClient.getCompanies(args);
-        return { content: [{ type: 'text', text: JSON.stringify(companies) }] };
-        
-      case 'hudu_get_assets':
-        const assets = await huduClient.getAssets(args);
-        return { content: [{ type: 'text', text: JSON.stringify(assets) }] };
-        
-      case 'hudu_search_all':
-        const { query, type, company_id } = args;
-        let results: any = {};
+            if (!type || type === 'articles') {
+              try {
+                results.articles = await huduClient.getArticles({ search: query, company_id });
+              } catch (error: any) {
+                if (error.response?.status === 401) {
+                  console.warn('Skipping articles search - insufficient permissions');
+                } else {
+                  throw error;
+                }
+              }
+            }
+            if (!type || type === 'assets') {
+              try {
+                results.assets = await huduClient.getAssets({ search: query, company_id });
+              } catch (error: any) {
+                if (error.response?.status === 401) {
+                  console.warn('Skipping assets search - insufficient permissions');
+                } else {
+                  throw error;
+                }
+              }
+            }
+            if (!type || type === 'passwords') {
+              try {
+                results.passwords = await huduClient.getAssetPasswords({ search: query, company_id });
+              } catch (error: any) {
+                if (error.response?.status === 401) {
+                  console.warn('Skipping passwords search - insufficient permissions');
+                } else {
+                  throw error;
+                }
+              }
+            }
+            if (!type || type === 'companies') {
+              try {
+                results.companies = await huduClient.getCompanies({ search: query });
+              } catch (error: any) {
+                if (error.response?.status === 401) {
+                  console.warn('Skipping companies search - insufficient permissions');
+                } else {
+                  throw error;
+                }
+              }
+            }
 
-        if (!type || type === 'articles') {
-          try {
-            results.articles = await huduClient.getArticles({ search: query, company_id });
-          } catch (error: any) {
-            if (error.response?.status === 401) {
-              console.warn('Skipping articles search - insufficient permissions');
-            } else {
-              throw error;
-            }
-          }
+            return { content: [{ type: 'text', text: JSON.stringify(results) }] };
+            
+          default:
+            throw new Error(`Unknown tool: ${name}`);
         }
-        if (!type || type === 'assets') {
-          try {
-            results.assets = await huduClient.getAssets({ search: query, company_id });
-          } catch (error: any) {
-            if (error.response?.status === 401) {
-              console.warn('Skipping assets search - insufficient permissions');
-            } else {
-              throw error;
-            }
-          }
-        }
-        if (!type || type === 'passwords') {
-          try {
-            results.passwords = await huduClient.getAssetPasswords({ search: query, company_id });
-          } catch (error: any) {
-            if (error.response?.status === 401) {
-              console.warn('Skipping passwords search - insufficient permissions');
-            } else {
-              throw error;
-            }
-          }
-        }
-        if (!type || type === 'companies') {
-          try {
-            results.companies = await huduClient.getCompanies({ search: query });
-          } catch (error: any) {
-            if (error.response?.status === 401) {
-              console.warn('Skipping companies search - insufficient permissions');
-            } else {
-              throw error;
-            }
-          }
-        }
-
-        return { content: [{ type: 'text', text: JSON.stringify(results) }] };
-        
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+      }
+    } catch (error) {
+      console.error(`Error executing tool ${name}:`, error);
+      throw error;
     }
   }
 

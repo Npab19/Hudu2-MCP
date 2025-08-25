@@ -116,4 +116,12 @@ The MCP server is configured in Claude Code at:
 - ✅ Support for articles, assets, companies, and password endpoints
 - ✅ Error handling for insufficient API permissions
 - ✅ Comprehensive search across multiple Hudu resource types
+- ✅ Latest package versions with zero deprecation warnings
 - ⚠️ Password endpoint requires elevated API permissions
+
+## Development Best Practices
+- **Always use latest packages**: Keep all dependencies updated to their latest stable versions
+- **Latest MCP SDK**: Currently using @modelcontextprotocol/sdk@^1.17.4 (latest)
+- **Modern tooling**: ESLint v9, Jest v30, TypeScript v5.9
+- **Zero deprecation warnings**: All deprecated packages have been resolved or overridden
+- **Package management**: Use npm overrides to force newer versions of transitive dependencies when needed
