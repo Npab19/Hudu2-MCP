@@ -2,7 +2,6 @@
 
 import dotenv from 'dotenv';
 import { HuduMcpServer } from './server.js';
-import { HuduHttpServer } from './http-server.js';
 import { HuduConfigSchema } from './types.js';
 
 // Load environment variables
@@ -21,10 +20,10 @@ async function main() {
     const useHttp = process.env.MCP_SERVER_PORT || process.env.NODE_ENV === 'production';
     
     if (useHttp) {
-      // HTTP server mode (for Docker/production)
-      const port = parseInt(process.env.MCP_SERVER_PORT || '3000');
-      const httpServer = new HuduHttpServer(config, port);
-      await httpServer.start();
+      // HTTP server mode using MCP SDK (for Docker/production)
+      const port = parseInt(process.env.MCP_SERVER_PORT || '3050');
+      const server = new HuduMcpServer(config);
+      await server.runHttp(port);
       
       // Keep the process alive
       process.on('SIGTERM', () => {
