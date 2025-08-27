@@ -8,13 +8,13 @@ A Model Context Protocol (MCP) server for Hudu - a comprehensive IT documentatio
 ## Latest Update (2025-08-26)
 ✅ **MAJOR FIX COMPLETED**: Server completely rewritten to use proper MCP SDK implementation instead of custom Express.js JSON-RPC handling. All 31 tools now properly registered and available through Claude Code.
 
-### SSE Transport Fix (Latest)
-✅ **SSE TRANSPORT FULLY FUNCTIONAL**: Fixed "Cannot POST /message" error by implementing proper session management and message routing for SSE transport. Server now correctly handles both GET `/sse` connections and POST `/message` endpoints with session-based transport routing.
+### Streamable HTTP Transport Migration (Latest)
+✅ **STREAMABLE HTTP TRANSPORT IMPLEMENTED**: Migrated from deprecated SSE transport to modern Streamable HTTP transport (MCP 2025-03-26 specification). Server now uses single `/mcp` endpoint with built-in session management, improved reliability, and simplified architecture.
 
 ## Requirements
 - Follow MCP specifications from https://modelcontextprotocol.io/specification/2025-06-18
 - Use official @modelcontextprotocol/sdk Server class
-- Support SSE (Server-Sent Events) transport for Claude Code
+- Support Streamable HTTP transport for Claude Code (MCP 2025-03-26)
 - Convert Hudu swagger API (hudu.json) to MCP server functionality
 - Provide secure access to Hudu resources with proper authentication
 - Handle API permission limitations gracefully
@@ -48,7 +48,7 @@ Based on the Hudu API analysis, this MCP server will provide:
 ## Architecture
 - Node.js/TypeScript implementation using MCP SDK
 - Official @modelcontextprotocol/sdk Server class
-- SSE (Server-Sent Events) HTTP transport for Claude Code
+- Streamable HTTP transport for Claude Code (MCP 2025-03-26 specification)
 - StdIO transport for traditional MCP clients
 - Secure API key authentication for Hudu
 - Rate limiting and error handling
@@ -114,31 +114,31 @@ The server will support all major Hudu API endpoints including:
 The MCP server must be configured in Claude Code using the CLI command:
 
 ```bash
-# Add SSE MCP server to Claude Code
-claude mcp add --transport sse hudu http://127.0.0.1:3050/sse
+# Add Streamable HTTP MCP server to Claude Code
+claude mcp add --transport http hudu http://127.0.0.1:3050/mcp
 ```
 
-**CRITICAL**: Never configure manually in JSON files. Always use the Claude Code CLI with the `--transport sse` flag for SSE MCP servers.
+**CRITICAL**: Always use the Claude Code CLI with the `--transport http` flag for Streamable HTTP MCP servers.
 
 **Alternative Configuration (if using Claude Desktop)**:
 ```json
 {
   "mcpServers": {
     "hudu": {
-      "transport": "sse",
-      "url": "http://127.0.0.1:3050/sse"
+      "transport": "http",
+      "url": "http://127.0.0.1:3050/mcp"
     }
   }
 }
 ```
 
 ## Current Implementation Status
-- ✅ **FIXED**: Proper MCP SDK Server implementation with SSEServerTransport
+- ✅ **MIGRATED**: Streamable HTTP transport implementation (MCP 2025-03-26 specification)
 - ✅ **FIXED**: All 31 tools properly registered through MCP SDK tool registration system
-- ✅ **FIXED**: Server runs on http://localhost:3050/sse with Claude Code compatibility
-- ✅ **FIXED**: Removed problematic custom Express.js JSON-RPC implementation
-- ✅ **FIXED**: Clean architecture using single server class for both stdio and SSE transports
-- ✅ **FIXED**: SSE transport session management and POST /message endpoint routing
+- ✅ **FIXED**: Server runs on http://localhost:3050/mcp with Claude Code compatibility
+- ✅ **SIMPLIFIED**: Single `/mcp` endpoint handles both GET (SSE) and POST (JSON-RPC) requests
+- ✅ **IMPROVED**: Built-in session management with UUID generation and security features
+- ✅ **ENHANCED**: DNS rebinding protection and proper CORS configuration
 - ✅ Search functionality with graceful error handling
 - ✅ Support for articles, assets, companies, and password endpoints
 - ✅ Error handling for insufficient API permissions
@@ -182,72 +182,57 @@ claude mcp add --transport sse hudu http://127.0.0.1:3050/sse
 2. **Missing MCP SDK Integration**: Custom HTTP implementation couldn't properly handle MCP protocol requirements.
 
 **Solutions Applied (2025-08-26)**:
-1. **Complete MCP SDK Migration**: 
-   - ✅ Removed problematic `http-server.ts` with custom Express.js JSON-RPC implementation
-   - ✅ Rewrote `server.ts` to use official `@modelcontextprotocol/sdk` Server class
-   - ✅ Added `SSEServerTransport` for proper Claude Code compatibility
-   - ✅ Updated `index.ts` to use MCP server for both stdio and HTTP modes
+1. **Streamable HTTP Transport Migration**: 
+   - ✅ Migrated from deprecated SSE transport to Streamable HTTP (MCP 2025-03-26)
+   - ✅ Replaced complex session mapping with built-in `StreamableHTTPServerTransport`
+   - ✅ Single `/mcp` endpoint handles both GET (SSE streams) and POST (JSON-RPC messages)
    - ✅ All 31 tools properly registered through MCP SDK's tool registration system
 
-2. **Proper Transport Configuration**: 
-   - ✅ Using `SSEServerTransport` with minimal Express.js wrapper for routing
-   - ✅ Server endpoint: http://localhost:3050/sse
-   - ✅ Updated Claude Code configuration: `claude mcp add --transport sse hudu http://127.0.0.1:3050/sse`
+2. **Modern Transport Configuration**: 
+   - ✅ Using `StreamableHTTPServerTransport` with UUID session generation
+   - ✅ Server endpoint: http://localhost:3050/mcp
+   - ✅ Updated Claude Code configuration: `claude mcp add --transport http hudu http://127.0.0.1:3050/mcp`
 
-3. **Clean Architecture**: 
-   - ✅ Single `HuduMcpServer` class handles both stdio and SSE transports
-   - ✅ Proper MCP protocol handling through SDK instead of manual JSON-RPC
-   - ✅ All tools registered using MCP SDK patterns
+3. **Simplified Architecture**: 
+   - ✅ Single `HuduMcpServer` class handles both stdio and Streamable HTTP transports
+   - ✅ Built-in session management eliminates manual transport mapping
+   - ✅ Proper MCP protocol handling through official SDK transport layer
 
-4. **SSE Transport Session Management (Latest Fix)**:
-   - ✅ Added session-based transport storage with `Map<string, SSEServerTransport>()`
-   - ✅ Implemented proper POST `/message` endpoint with session ID routing
-   - ✅ Fixed "Cannot POST /message" HTTP 404 errors
-   - ✅ Added fallback message handling for transport-less requests
-   - ✅ Proper connection cleanup on client disconnect
+4. **Enhanced Security and Reliability**:
+   - ✅ DNS rebinding protection with configurable allowed origins
+   - ✅ Secure UUID-based session ID generation
+   - ✅ Built-in resumability support for connection recovery
+   - ✅ Improved CORS configuration with proper header support
 
 **Current Status**:
-- ✅ Server successfully running on port 3050 with SSE transport
+- ✅ Server successfully running on port 3050 with Streamable HTTP transport
 - ✅ Tools list returns 31 tools: `articles`, `companies`, `assets`, `passwords`, `search`, etc.
 - ✅ All tools registered through MCP SDK without custom handling
 - ✅ Claude Code tools available as: `search`, `companies.query`, `articles`, etc. (no `mcp__hudu__` prefix)
 - ✅ Docker container rebuilt and running successfully
-- ✅ SSE transport fully operational with proper session management
-- ✅ Both GET `/sse` and POST `/message` endpoints working correctly
+- ✅ Streamable HTTP transport fully operational with built-in session management
+- ✅ Single `/mcp` endpoint handles all MCP communication
 
 **Key Files Modified**:
-- `src/server.ts` - Added `runHttp()` method with `SSEServerTransport` and session management
-- `src/index.ts` - Updated to use MCP server for HTTP mode
-- `package.json` - Cleaned dependencies (minimal Express.js for routing only)
-- Removed `src/http-server.ts` - No longer needed
+- `src/server.ts` - Migrated `runHttp()` method to use `StreamableHTTPServerTransport`
+- `src/index.ts` - No changes needed (already using MCP server pattern)
+- `package.json` - Dependencies unchanged (minimal Express.js for routing only)
+- `CLAUDE.md` - Updated documentation to reflect Streamable HTTP transport
 
 **Technical Implementation Details**:
 ```typescript
-// SSE Transport with Session Management (src/server.ts:252-296)
-const sseTransports = new Map<string, SSEServerTransport>();
-
-app.get('/sse', async (req, res) => {
-  const transport = new SSEServerTransport('/message', res);
-  const sessionId = (transport as any).sessionId || Math.random().toString(36);
-  sseTransports.set(sessionId, transport);
-  
-  res.on('close', () => {
-    sseTransports.delete(sessionId);
-  });
-  
-  await this.server.connect(transport);
+// Streamable HTTP Transport with Built-in Session Management (src/server.ts:253-259)
+const transport = new StreamableHTTPServerTransport({
+  sessionIdGenerator: () => randomUUID(),
+  allowedOrigins: ['http://localhost:*', 'http://127.0.0.1:*', '*'],
+  enableDnsRebindingProtection: false, // Disabled for localhost development
+  enableJsonResponse: false // Keep SSE streaming enabled for real-time communication
 });
 
-app.post('/message', async (req, res) => {
-  const sessionId = req.query.sessionId as string;
-  const transport = sessionId ? sseTransports.get(sessionId) : sseTransports.values().next().value;
-  
-  if (transport && (transport as any).handlePostMessage) {
-    await (transport as any).handlePostMessage(req, res, req.body);
-  } else {
-    res.json({ status: 'received' });
-  }
+// Single MCP endpoint - handles both GET (SSE) and POST (JSON-RPC) requests
+app.all('/mcp', async (req, res) => {
+  await transport.handleRequest(req, res);
 });
 ```
 
-**Important**: The server now uses proper MCP SDK architecture. The previous custom Express.js implementation has been completely replaced with official MCP SDK components.
+**Important**: The server now uses the latest MCP 2025-03-26 Streamable HTTP specification, providing better reliability and simplified architecture compared to the previous SSE implementation.

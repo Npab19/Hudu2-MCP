@@ -1,8 +1,9 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import express from 'express';
 import { createServer } from 'http';
+import { randomUUID } from 'crypto';
 import {
   CallToolRequestSchema,
   ErrorCode,
@@ -240,8 +241,8 @@ export class HuduMcpServer {
     // CORS middleware
     app.use((req, res, next) => {
       res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Cache-Control');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Cache-Control, Mcp-Session-Id, Last-Event-ID');
       if (req.method === 'OPTIONS') {
         res.status(204).send();
         return;
@@ -249,55 +250,30 @@ export class HuduMcpServer {
       next();
     });
 
-    // Store active SSE transports by session ID
-    const sseTransports = new Map<string, SSEServerTransport>();
-
-    // SSE endpoint - Claude Code connects here for streaming
-    app.get('/sse', async (req, res) => {
-      try {
-        // Create SSE transport
-        const transport = new SSEServerTransport('/message', res);
-        
-        // Store transport by session ID for message routing
-        const sessionId = (transport as any).sessionId || Math.random().toString(36);
-        sseTransports.set(sessionId, transport);
-        
-        // Clean up when connection closes
-        res.on('close', () => {
-          sseTransports.delete(sessionId);
-        });
-        
-        // Connect the server
-        await this.server.connect(transport);
-      } catch (error) {
-        console.error('Error setting up SSE transport:', error);
-        res.status(500).send('SSE setup failed');
-      }
+    // Create Streamable HTTP transport with session management and security
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      allowedOrigins: ['http://localhost:*', 'http://127.0.0.1:*', '*'],
+      enableDnsRebindingProtection: false, // Disabled for localhost development
+      enableJsonResponse: false // Keep SSE streaming enabled for real-time communication
     });
 
-    // Message endpoint - Claude Code posts messages here
-    app.post('/message', async (req, res) => {
+    // Single MCP endpoint - handles both GET (SSE) and POST (JSON-RPC) requests
+    app.all('/mcp', async (req, res) => {
       try {
-        const sessionId = req.query.sessionId as string;
-        const transport = sessionId ? sseTransports.get(sessionId) : sseTransports.values().next().value;
-        
-        if (transport && (transport as any).handlePostMessage) {
-          // Use transport's built-in message handling
-          await (transport as any).handlePostMessage(req, res, req.body);
-        } else {
-          // Fallback for simple acknowledgment
-          console.log('Received MCP message:', req.body);
-          res.json({ status: 'received' });
-        }
+        await transport.handleRequest(req, res);
       } catch (error) {
-        console.error('Error handling message:', error);
+        console.error('Error handling MCP request:', error);
         res.status(500).json({ error: 'Internal server error' });
       }
     });
 
+    // Connect the MCP server to the transport
+    await this.server.connect(transport);
+
     app.listen(port, () => {
-      console.error(`Hudu MCP server running on HTTP port ${port}`);
-      console.error(`Connect Claude Code to: http://localhost:${port}/sse`);
+      console.error(`Hudu MCP server running on Streamable HTTP transport at port ${port}`);
+      console.error(`Connect Claude Code to: http://localhost:${port}/mcp`);
     });
     
     // Keep the process alive
