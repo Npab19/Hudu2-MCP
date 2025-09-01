@@ -25,6 +25,10 @@ RUN npm prune --omit=dev
 # Create a non-root user for security
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S hudu -u 1001
+
+# Create logs directory and set proper permissions
+RUN mkdir -p /app/logs && chown -R hudu:nodejs /app/logs
+
 USER hudu
 
 # Expose the port (though MCP typically uses stdio)
