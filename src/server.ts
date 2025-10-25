@@ -29,6 +29,22 @@ export interface HuduMcpServerConfig {
   // HTTP-only transport as per CLAUDE.md requirements
 }
 
+export interface AuthenticatedUser {
+  email?: string;
+  name?: string;
+  groups?: string[];
+  accessToken?: string;
+}
+
+// Extend Express Request to include user context
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthenticatedUser;
+    }
+  }
+}
+
 export class HuduMcpServer {
   private server: Server;
   private huduClient: HuduClient;
@@ -489,7 +505,39 @@ Format as a professional report with executive summary.`
       limit: '50mb',
       strict: false
     }));
-    
+
+    // OAuth2-Proxy User Context Middleware
+    // Extracts user information from headers injected by OAuth2-Proxy
+    app.use((req, res, next) => {
+      const oauthEnabled = process.env.OAUTH_ENABLED === 'true';
+
+      if (oauthEnabled) {
+        // Extract user information from OAuth2-Proxy headers
+        const email = req.headers['x-auth-request-email'] as string;
+        const user = req.headers['x-auth-request-user'] as string;
+        const accessToken = req.headers['x-auth-request-access-token'] as string;
+        const groupsHeader = req.headers['x-auth-request-groups'] as string;
+
+        if (email || user) {
+          req.user = {
+            email: email || user,
+            name: user || email,
+            groups: groupsHeader ? groupsHeader.split(',').map(g => g.trim()) : [],
+            accessToken: accessToken
+          };
+
+          this.logger.debug('OAuth user context extracted', {
+            email: req.user.email,
+            groups: req.user.groups,
+            path: req.path,
+            method: req.method
+          });
+        }
+      }
+
+      next();
+    });
+
     // Health check endpoint
     app.get('/health', (req, res) => {
       res.json({
@@ -518,7 +566,9 @@ Format as a professional report with executive summary.`
     app.post('/mcp', async (req, res) => {
       this.logger.info('MCP HTTP request received', {
         method: req.body?.method,
-        id: req.body?.id
+        id: req.body?.id,
+        user: req.user?.email || 'anonymous',
+        userGroups: req.user?.groups || []
       });
       
       try {
@@ -554,14 +604,31 @@ Format as a professional report with executive summary.`
           case 'tools/call':
             const { name, arguments: args } = params;
             const executor = WORKING_TOOL_EXECUTORS[name];
-            
+
             if (!executor) {
+              this.logger.error('Unknown tool requested', {
+                toolName: name,
+                user: req.user?.email || 'anonymous'
+              });
               throw new Error(`Unknown tool: ${name}`);
             }
-            
+
+            this.logger.info('Tool execution started', {
+              toolName: name,
+              user: req.user?.email || 'anonymous',
+              userGroups: req.user?.groups || [],
+              arguments: JSON.stringify(args).substring(0, 200) // First 200 chars only
+            });
+
             const toolResult = await executor(args, this.huduClient);
-            
+
             if (toolResult.success) {
+              this.logger.info('Tool execution completed', {
+                toolName: name,
+                user: req.user?.email || 'anonymous',
+                success: true
+              });
+
               result = {
                 content: [{
                   type: 'text',
@@ -569,6 +636,11 @@ Format as a professional report with executive summary.`
                 }]
               };
             } else {
+              this.logger.error('Tool execution failed', {
+                toolName: name,
+                user: req.user?.email || 'anonymous',
+                error: toolResult.error
+              });
               throw new Error(toolResult.error || 'Tool execution failed');
             }
             break;

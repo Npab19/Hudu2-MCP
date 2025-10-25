@@ -12,8 +12,10 @@ yarn-error.log*
 .env.production.local
 .env.stdio
 .env.test
+.env.traefik
 .env.*
 !.env.example
+!.env.traefik.example
 
 # Build outputs
 dist/
@@ -32,6 +34,10 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+# Traefik certificates and dynamic config
+traefik/letsencrypt/
+traefik/dynamic/
 
 # Runtime data
 pids/
