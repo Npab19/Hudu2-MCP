@@ -32,8 +32,7 @@ async function main(): Promise<void> {
         timeout: env.HUDU_TIMEOUT
       },
       logLevel: env.LOG_LEVEL,
-      port: env.MCP_SERVER_PORT,
-      transport: transport as 'stdio' | 'http'
+      port: env.MCP_SERVER_PORT
     };
 
     // Create and start the MCP server
@@ -55,13 +54,12 @@ async function main(): Promise<void> {
       console.error('   HUDU_BASE_URL - Your Hudu instance URL (e.g., https://company.huducloud.com)');
       console.error('\n⚙️  Optional environment variables:');
       console.error('   HUDU_TIMEOUT      - API request timeout in milliseconds (default: 30000)');
-      console.error('   MCP_SERVER_PORT   - HTTP server port (default: 3050, enables HTTP transport)');
-      console.error('   MCP_TRANSPORT     - Transport type: stdio or http (auto-detected if not set)');
+      console.error('   MCP_SERVER_PORT   - HTTP server port (default: 3050, required for HTTP-only transport)');
       console.error('   LOG_LEVEL         - Logging level: error, warn, info, debug (default: info)');
       console.error('   NODE_ENV          - Environment: development, production, test (default: development)');
-      console.error('\n💡 Server uses:');
-      console.error('   - stdio transport: For Claude Desktop and CLI tools');
-      console.error('   - HTTP transport:  For Docker and web clients (when MCP_SERVER_PORT is set)');
+      console.error('\n💡 Server configuration:');
+      console.error('   - HTTP-only transport: For Claude Code, Docker, and all clients');
+      console.error('   - No STDIO support: Use HTTP transport exclusively as per CLAUDE.md');
     }
     
     process.exit(1);

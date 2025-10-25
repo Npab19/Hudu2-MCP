@@ -1,8 +1,6 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { 
+import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   ListResourcesRequestSchema,
@@ -18,6 +16,7 @@ import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'crypto';
 import { HuduClient } from './hudu-client.js';
 import { HuduConfig } from './types.js';
@@ -27,7 +26,7 @@ export interface HuduMcpServerConfig {
   huduConfig: HuduConfig;
   logLevel?: string;
   port?: number;
-  transport?: 'stdio' | 'http';
+  // HTTP-only transport as per CLAUDE.md requirements
 }
 
 export class HuduMcpServer {
@@ -65,7 +64,7 @@ export class HuduMcpServer {
       version: '1.1.0',
       huduBaseUrl: config.huduConfig.baseUrl,
       logLevel: config.logLevel || 'info',
-      transport: config.transport || 'stdio'
+      transport: 'http' // HTTP-only as per CLAUDE.md
     });
   }
 
@@ -418,48 +417,78 @@ Format as a professional report with executive summary.`
     this.logger.debug('MCP request handlers setup complete');
   }
 
-  async runStdio(): Promise<void> {
-    this.logger.info('Starting MCP server with stdio transport');
-    
-    const transport = new StdioServerTransport();
-    
-    transport.onerror = (error) => {
-      this.logger.error('Transport error', { error: error.message, stack: error.stack });
-    };
-
-    transport.onclose = () => {
-      this.logger.info('Transport closed');
-    };
-    
-    await this.server.connect(transport);
-    
-    this.logger.info('MCP server connected via stdio transport');
-    
-    // Handle graceful shutdown
-    const shutdown = () => {
-      this.logger.info('Shutting down MCP server');
-      transport.close();
-    };
-
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
-  }
+  // STDIO transport removed as per CLAUDE.md requirements - HTTP ONLY
 
   async runHttp(): Promise<void> {
     const port = this.config.port || 3050;
     this.logger.info('Starting MCP server with Streamable HTTP transport', { port });
-    
+
     const app = express();
-    
-    // Configure middleware
+
+    // Security: Restrict CORS to localhost and local network only
+    const allowedOrigins = process.env.MCP_ALLOWED_ORIGINS?.split(',') || [
+      'http://localhost',
+      'http://127.0.0.1',
+      /^http:\/\/localhost:\d+$/,
+      /^http:\/\/127\.0\.0\.1:\d+$/,
+      /^http:\/\/192\.168\.\d+\.\d+:\d+$/,  // Local network
+      /^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,   // Private network
+      /^http:\/\/172\.(1[6-9]|2[0-9]|3[01])\.\d+\.\d+:\d+$/  // Private network
+    ];
+
     app.use(cors({
-      origin: true,
+      origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps, curl, Postman, Claude Desktop)
+        if (!origin) return callback(null, true);
+
+        // Check if origin matches allowed patterns
+        const isAllowed = allowedOrigins.some(allowed => {
+          if (typeof allowed === 'string') {
+            return origin.startsWith(allowed);
+          }
+          return allowed.test(origin);
+        });
+
+        if (isAllowed) {
+          callback(null, true);
+        } else {
+          this.logger.warn('CORS blocked request from origin', { origin });
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
-      methods: ['GET', 'POST', 'OPTIONS', 'DELETE'],
+      methods: ['GET', 'POST', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Mcp-Session-Id']
     }));
-    
-    app.use(express.json());
+
+    // Security: Rate limiting to prevent abuse
+    const limiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 1000, // Limit each IP to 1000 requests per 15 minutes
+      message: 'Too many requests from this IP, please try again later.',
+      standardHeaders: true,
+      legacyHeaders: false,
+      handler: (req, res) => {
+        this.logger.warn('Rate limit exceeded', {
+          ip: req.ip,
+          path: req.path
+        });
+        res.status(429).json({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded. Please try again later.',
+          retryAfter: Math.ceil(15 * 60)
+        });
+      }
+    });
+
+    // Apply rate limiting to all routes
+    app.use(limiter);
+
+    // Use express.json with increased size limit for MCP messages
+    app.use(express.json({
+      limit: '50mb',
+      strict: false
+    }));
     
     // Health check endpoint
     app.get('/health', (req, res) => {
@@ -477,68 +506,256 @@ Format as a professional report with executive summary.`
         name: 'hudu-mcp-server',
         version: '1.1.0',
         mcp: {
-          version: '2025-06-18',
-          transports: {
-            sse: '/sse',
-            http: '/mcp'
-          }
+          version: '2024-11-05',
+          endpoint: '/mcp'
         }
       });
     });
     
     
-    // SSE endpoint for MCP Inspector compatibility
-    app.get('/sse', async (req, res) => {
-      this.logger.info('SSE connection initiated', {
-        ip: req.ip,
-        userAgent: req.get('User-Agent')
-      });
-      
-      const transport = new SSEServerTransport('/sse', res);
-      await this.server.connect(transport);
-      
-      this.logger.info('SSE transport connected');
-    });
     
-    // Create Streamable HTTP transport in stateless mode
-    const httpTransport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-      allowedOrigins: ['*'],
-      enableDnsRebindingProtection: false,
-      enableJsonResponse: false
-    });
-    
-    // Connect the server to the HTTP transport
-    await this.server.connect(httpTransport);
-    
-    // Streamable HTTP transport endpoint - handles both GET and POST
-    app.all('/mcp', async (req, res) => {
-      this.logger.info('Streamable HTTP MCP request received', {
-        ip: req.ip,
-        userAgent: req.get('User-Agent'),
-        method: req.method,
-        body: req.method === 'POST' ? req.body : undefined
+    // Simple MCP HTTP endpoint - bypass StreamableHTTPServerTransport issues
+    app.post('/mcp', async (req, res) => {
+      this.logger.info('MCP HTTP request received', {
+        method: req.body?.method,
+        id: req.body?.id
       });
       
       try {
-        await httpTransport.handleRequest(req, res, req.body);
-        this.logger.info('Streamable HTTP transport handled request');
-      } catch (error: any) {
-        this.logger.error('Transport error', { error: error.message });
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Transport error' });
+        const { method, params, id, jsonrpc } = req.body;
+        let result;
+        
+        // Handle MCP methods directly using server handlers
+        switch (method) {
+          case 'initialize':
+            result = {
+              protocolVersion: '2024-11-05',
+              capabilities: {
+                tools: {},
+                resources: {},
+                prompts: {}
+              },
+              serverInfo: {
+                name: 'hudu-mcp-server',
+                version: '1.1.0'
+              }
+            };
+            break;
+            
+          case 'tools/list':
+            const tools = Object.values(WORKING_TOOLS).map(tool => ({
+              name: tool.name,
+              description: tool.description,
+              inputSchema: tool.inputSchema
+            }));
+            result = { tools };
+            break;
+            
+          case 'tools/call':
+            const { name, arguments: args } = params;
+            const executor = WORKING_TOOL_EXECUTORS[name];
+            
+            if (!executor) {
+              throw new Error(`Unknown tool: ${name}`);
+            }
+            
+            const toolResult = await executor(args, this.huduClient);
+            
+            if (toolResult.success) {
+              result = {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(toolResult.data || { success: true, message: toolResult.message }, null, 2)
+                }]
+              };
+            } else {
+              throw new Error(toolResult.error || 'Tool execution failed');
+            }
+            break;
+            
+          case 'resources/list':
+            result = {
+              resources: [
+                {
+                  uri: 'hudu://articles',
+                  name: 'Hudu Articles',
+                  description: 'Knowledge base articles from Hudu',
+                  mimeType: 'application/json'
+                },
+                {
+                  uri: 'hudu://assets',
+                  name: 'Hudu Assets',
+                  description: 'IT assets inventory from Hudu',
+                  mimeType: 'application/json'
+                },
+                {
+                  uri: 'hudu://companies',
+                  name: 'Hudu Companies',
+                  description: 'Company information from Hudu',
+                  mimeType: 'application/json'
+                },
+                {
+                  uri: 'hudu://passwords',
+                  name: 'Hudu Passwords',
+                  description: 'Password entries from Hudu',
+                  mimeType: 'application/json'
+                }
+              ]
+            };
+            break;
+            
+          case 'resources/read':
+            const { uri } = params;
+            let data: any[] = [];
+            
+            switch (uri) {
+              case 'hudu://articles':
+                data = await this.huduClient.getArticles({});
+                break;
+              case 'hudu://assets':
+                data = await this.huduClient.getAssets({});
+                break;
+              case 'hudu://companies':
+                data = await this.huduClient.getCompanies({});
+                break;
+              case 'hudu://passwords':
+                data = await this.huduClient.getAssetPasswords({});
+                break;
+              default:
+                throw new Error(`Unknown resource URI: ${uri}`);
+            }
+            
+            result = {
+              contents: [{
+                uri,
+                mimeType: 'application/json',
+                text: JSON.stringify(data, null, 2)
+              }]
+            };
+            break;
+            
+          case 'prompts/list':
+            result = {
+              prompts: [
+                {
+                  name: 'hudu_security_audit',
+                  description: 'Generate a comprehensive security audit report based on Hudu data',
+                  arguments: [
+                    {
+                      name: 'company_id',
+                      description: 'Company ID to audit (optional)',
+                      required: false
+                    }
+                  ]
+                },
+                {
+                  name: 'hudu_asset_report',
+                  description: 'Generate an asset inventory report',
+                  arguments: [
+                    {
+                      name: 'company_id',
+                      description: 'Company ID to report on (optional)',
+                      required: false
+                    }
+                  ]
+                }
+              ]
+            };
+            break;
+            
+          case 'prompts/get':
+            const { name: promptName, arguments: promptArgs } = params;
+            
+            switch (promptName) {
+              case 'hudu_security_audit':
+                const companyId = promptArgs?.company_id;
+                result = {
+                  description: 'Security audit prompt for Hudu data',
+                  messages: [
+                    {
+                      role: 'user',
+                      content: {
+                        type: 'text',
+                        text: `Perform a comprehensive security audit${companyId ? ` for company ID ${companyId}` : ' across all companies'}. Review assets, passwords, and documentation for security compliance. Focus on:
+
+1. Password strength and rotation policies
+2. Asset inventory completeness
+3. Documentation coverage
+4. Access controls and permissions
+5. Compliance with security standards
+
+Provide actionable recommendations for improvement.`
+                      }
+                    }
+                  ]
+                };
+                break;
+                
+              case 'hudu_asset_report':
+                const reportCompanyId = promptArgs?.company_id;
+                result = {
+                  description: 'Asset inventory report prompt for Hudu data',
+                  messages: [
+                    {
+                      role: 'user',
+                      content: {
+                        type: 'text',
+                        text: `Generate a comprehensive asset inventory report${reportCompanyId ? ` for company ID ${reportCompanyId}` : ' across all companies'}. Include:
+
+1. Total asset count by type
+2. Assets requiring updates
+3. Missing documentation
+4. Asset relationships and dependencies
+5. Compliance status
+
+Format as a professional report with executive summary.`
+                      }
+                    }
+                  ]
+                };
+                break;
+                
+              default:
+                throw new Error(`Unknown prompt: ${promptName}`);
+            }
+            break;
+            
+          default:
+            throw new Error(`Unsupported method: ${method}`);
         }
+        
+        res.json({
+          jsonrpc: jsonrpc || '2.0',
+          id: id,
+          result: result
+        });
+        
+        this.logger.info('MCP HTTP request completed', { method, id });
+        
+      } catch (error: any) {
+        this.logger.error('MCP HTTP request failed', { 
+          error: error.message,
+          stack: error.stack
+        });
+        
+        res.json({
+          jsonrpc: req.body?.jsonrpc || '2.0',
+          id: req.body?.id,
+          error: {
+            code: -32000,
+            message: error.message
+          }
+        });
       }
     });
     
     // Start HTTP server
     const httpServer = app.listen(port, '0.0.0.0', () => {
-      this.logger.info('MCP server started with dual transports', {
+      this.logger.info('MCP server started with HTTP transport', {
         port,
         endpoints: {
           health: `http://localhost:${port}/health`,
           info: `http://localhost:${port}/`,
-          sse: `http://localhost:${port}/sse`,
           mcp: `http://localhost:${port}/mcp`
         }
       });
@@ -561,12 +778,7 @@ Format as a professional report with executive summary.`
   }
 
   async run(): Promise<void> {
-    const transport = this.config.transport || 'stdio';
-    
-    if (transport === 'http') {
-      await this.runHttp();
-    } else {
-      await this.runStdio();
-    }
+    // HTTP-only transport as per CLAUDE.md requirements
+    await this.runHttp();
   }
 }

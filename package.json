@@ -29,12 +29,13 @@
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.4",
-    "axios": "^1.7.7",
+    "@modelcontextprotocol/sdk": "^1.20.1",
+    "axios": "^1.12.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.1",
-    "winston": "^3.15.0",
+    "express-rate-limit": "^8.1.0",
+    "winston": "^3.18.3",
     "winston-daily-rotate-file": "^5.0.0",
     "zod": "^3.23.8"
   },
@@ -45,12 +46,12 @@
     "@types/node": "^22.9.3",
     "@typescript-eslint/eslint-plugin": "^8.17.0",
     "@typescript-eslint/parser": "^8.17.0",
-    "eslint": "^9.15.0",
+    "eslint": "^9.38.0",
     "jest": "^30.0.0",
     "rimraf": "^6.0.1",
     "ts-jest": "^29.2.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.3"
   },
   "overrides": {
     "test-exclude": "^7.0.1"
