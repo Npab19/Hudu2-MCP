@@ -4,13 +4,14 @@ You are Claude Code. Generate and maintain a production-ready **MCP server** tha
 
 ## Objective
 Ship an MVP MCP server that:
-- Conforms to **MCP spec 2025-06-18**.
-- Uses the **official MCP TypeScript SDK**: @modelcontextprotocol/sdk
-- Exposes **Streamable HTTP Transport** on port 3050.
+- Conforms to the **LATEST MCP specification** (always current version - NO legacy versions).
+- **ALWAYS uses the LATEST official MCP TypeScript SDK**: @modelcontextprotocol/sdk (update immediately when new versions available)
+- **EXCLUSIVELY uses Streamable HTTP Transport** on port 3050 - **NO STDIO, NO SSE, HTTP ONLY**.
 - Implements the **resource+action** pattern (predictable verbs across domains).
 - Runs reliably in **Docker**, with health/readiness endpoints.
 - Handles **partial API access** gracefully (typed errors, warnings, next steps).
 - Uses **.env** for all Hudu config (no secrets in code).
+- **MANDATORY**: Always update to latest packages - security and compatibility requirement.
 
 ---
 
@@ -30,7 +31,9 @@ Fail fast if required vars are missing. No hard-coded secrets.
 
 ---
 
-## Connection from Claude Code (HTTP)
+## Connection from Claude Code (HTTP ONLY)
+
+**ONLY HTTP transport is supported - no STDIO configuration:**
 
 Add MCP server to Claude Code:
 
@@ -49,6 +52,8 @@ Alternative Claude Desktop config:
   }
 }
 ```
+
+**IMPORTANT:** Never configure STDIO transport. This server only supports HTTP.
 
 ---
 
@@ -99,11 +104,12 @@ Alternative Claude Desktop config:
 
 ## Coding Standards
 
-- **Language:** TypeScript with `"strict": true`.
-- **SDK:** Use only the official MCP TypeScript SDK for protocol integration.
-- **Transport:** Streamable HTTP Transport via `StreamableHTTPServerTransport`.
+- **Language:** TypeScript with `"strict": true` (latest stable TypeScript version).
+- **SDK:** **ONLY** the latest official MCP TypeScript SDK - always update immediately when new versions release.
+- **Transport:** **EXCLUSIVELY** Streamable HTTP Transport via `StreamableHTTPServerTransport` - **NEVER STDIO, NEVER SSE**.
 - **Pattern:** `resource.action` naming for tools.
-- **Validation:** Zod schemas for inputs/outputs.
+- **Validation:** Zod schemas for inputs/outputs (latest version).
+- **Dependencies:** **ALWAYS** use latest stable versions of all packages - no pinning to old versions.
 - **Errors:** Map Hudu 401/403/404/429/5xx → typed MCP errors with:
   - `message` (user-readable)
   - `code` (stable)
@@ -210,10 +216,12 @@ _Similar patterns for `assets.*`, `articles.*`, `passwords.*`, `networks.*`_
 ## Testing Protocol
 
 1. **Build and start Docker**: `docker-compose up --build -d`
-2. **Configure Claude Code**: `claude mcp add --transport http hudu http://127.0.0.1:3050/mcp`
+2. **Configure Claude Code (HTTP ONLY)**: `claude mcp add --transport http hudu http://127.0.0.1:3050/mcp`
 3. **Test tools**: Use `search`, `companies.query`, etc. in Claude Code
 4. **NEVER test with curl** - Always use Claude Code's native MCP functionality
-5. **Verify logs**: `docker-compose logs -f`
+5. **NEVER configure STDIO** - Only HTTP transport is supported
+6. **Verify logs**: `docker-compose logs -f`
+7. **Update check**: Regularly verify you're using latest MCP SDK and packages
 
 ---
 
@@ -248,11 +256,13 @@ _Similar patterns for `assets.*`, `articles.*`, `passwords.*`, `networks.*`_
 - Graceful error handling for permissions
 - Docker deployment
 
-**Latest fix (2025-08-26):**
-- Migrated to StreamableHTTPServerTransport
+**Latest requirements (2025-01-09):**
+- **ALWAYS** use latest MCP SDK version (check regularly for updates)
+- **EXCLUSIVELY** StreamableHTTPServerTransport - no STDIO support
 - Single `/mcp` endpoint for all MCP communication
 - Built-in session management with UUID
-- Proper MCP SDK integration
+- **MANDATORY** latest package updates for security and compatibility
+- Follow latest MCP specification from https://modelcontextprotocol.io/
 
 ---
 
